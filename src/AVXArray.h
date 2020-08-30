@@ -23,6 +23,9 @@ public:
     static AVXArray arange(int start, int end);
     double sum();
     double prod();
+    double max();
+    int argmax();
+    AVXArray sqrt();
     AVXArray exp();
     AVXArray operator+(const AVXArray& b);
     AVXArray operator-(const AVXArray& b);

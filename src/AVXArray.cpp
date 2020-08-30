@@ -115,8 +115,11 @@ std::ostream &operator<<(std::ostream &out, const AVXArray &c) {
             out << c.array[i][3] << " " << c.array[i][2] << " " << c.array[i][1] << " " << c.array[i][0] << " ";
         }
         auto n_valid = c.size % 4;
-        for (int i = 3; i >= n_valid; i--) {
-            out << c.array[c.array.size()-1][i] << " ";
+        if (n_valid == 0){
+            n_valid = 4;
+        }
+        for (int i = 0; i < n_valid; i++) {
+            out << c.array[c.array.size()-1][3-i] << " ";
         }
         out << "]";
         return out;
@@ -149,8 +152,11 @@ double AVXArray::sum() {
     }
 
     auto n_valid = this->size % 4;
-    for (int i = 3; i >= n_valid; i--) {
-        res += this->array[this->array.size()-1][i];
+    if (n_valid == 0){
+        n_valid = 4;
+    }
+    for (int i = 0; i < n_valid; i++) {
+        res += this->array[this->array.size()-1][3-i];
     }
     return res;
 }
@@ -161,8 +167,11 @@ double AVXArray::prod() {
         res *= this->array[i][0] * this->array[i][1] * this->array[i][2] * this->array[i][3];
     }
     auto n_valid = this->size % 4;
-    for (int i = 3; i >= n_valid; i--) {
-        res *= this->array[this->array.size()-1][i];
+    if (n_valid == 0){
+        n_valid = 4;
+    }
+    for (int i = 0; i < n_valid; i++) {
+        res *= this->array[this->array.size()-1][3-i];
     }
     return res;
 }
@@ -180,9 +189,54 @@ AVXArray AVXArray::exp() {
     }
     auto n_valid = this->size % 4;
     arr.array.push_back(_mm256_set1_pd(0));
-    for (int i = 3; i >= n_valid; i--) {
-        arr.array[this->array.size()-1][i] = std::exp(this->array[this->array.size()-1][i]);
+    if (n_valid == 0){
+        n_valid = 4;
+    }
+    for (int i = 0; i < n_valid; i++) {
+        arr.array[this->array.size()-1][3-i] = std::exp(this->array[this->array.size()-1][3-i]);
     }
 
+    return arr;
+}
+
+double AVXArray::max() {
+    std::vector<double> max_values;
+    for (int i = 0; i < this->array.size()-1; i++) {
+        __m256d y = _mm256_permute2f128_pd(this->array[i], this->array[i], 1); // permute 128-bit values
+        __m256d m1 = _mm256_max_pd(this->array[i], y); // m1[0] = max(x[0], x[2]), m1[1] = max(x[1], x[3]), etc.
+        __m256d m2 = _mm256_permute_pd(m1, 5); // set m2[0] = m1[1], m2[1] = m1[0], etc.
+        __m256d m = _mm256_max_pd(m1, m2); // all m[0] ... m[3] contain the horizontal max(x[0], x[1], x[2], x[3])
+        max_values.push_back(m[0]);
+    }
+    auto n_valid = this->size % 4;
+    double max_last_array = this->array[this->array.size()-1][3];
+    if (n_valid == 0){
+        n_valid = 4;
+    }
+    for (int i = 0; i < n_valid; i++) {
+        if (this->array[this->array.size()-1][3-i] > max_last_array){
+            max_last_array = this->array[this->array.size()-1][3-i];
+        }
+    }
+    max_values.push_back(max_last_array);
+    return *std::max_element(max_values.begin(), max_values.end());
+}
+
+int AVXArray::argmax() {
+    double max_value = this->max();
+    for (int i = 0 ; i < this->size ; i++){
+        if (max_value == (*this)[i]){
+            return i;
+        }
+    }
+    return -1;
+}
+
+AVXArray AVXArray::sqrt() {
+    AVXArray arr = AVXArray();
+    arr.size = this->size;
+    for (int i=0; i < this->array.size(); i++){
+        arr.array.push_back(_mm256_sqrt_pd(this->array[i]));
+    }
     return arr;
 }
